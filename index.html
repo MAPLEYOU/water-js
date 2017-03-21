@@ -3,7 +3,11 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
-    <title>Wind Animation</title>
+    <title>Sea Surface Animation</title>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.0/gh-fork-ribbon.min.css" />
+<!--[if lt IE 9]>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.0/gh-fork-ribbon.ie.min.css" />
+<![endif]-->
 
     <link rel="stylesheet" href="https://js.arcgis.com/3.17/esri/css/esri.css">
 
@@ -31,18 +35,153 @@
         color: #08c;
       }
 
+
     </style>
 
     <script>
       var dojoConfig = {
         paths: {
-          plugins: location.pathname.replace(/\/[^/]+$/, "") + "/plugins"
+          plugins: location.pathname + "./plugins"
         }
       };
     </script>
-    <script src="./windy.js"></script>
+    <script src="windy.js"></script>
+    <script src="netcdfjs.js"></script>
     <script src="https://js.arcgis.com/3.17compact/"></script>
     <script>
+
+    if (!Date.prototype.toISOString2) {
+  (function() {
+
+    function pad(number) {
+      if (number < 10) {
+        return '0' + number;
+      }
+      return number;
+    }
+
+    Date.prototype.toISOString2 = function() {
+      return this.getUTCFullYear() +
+        '-' + pad(this.getUTCMonth() + 1) +
+        '-' + pad(this.getUTCDate()) +
+        'T' + pad(this.getUTCHours()) +
+        ':' + pad(this.getUTCMinutes()) +
+        ':' + pad(this.getUTCSeconds()) +
+        'Z';
+    };
+
+  }());
+}
+	function display_time(time){
+		document.getElementById("display_time").setAttribute("title",(new Date(time)).toISOString2());
+	}
+    var windlayers = [];
+		function flatten(a){
+  		return [].concat.apply([], a);
+		}
+    function nc2gfs(atime, alat, alon, xvel, yvel){
+      var results = Array();
+      var stride = alat.length * alon.length;
+      for(var itime=0; itime < atime.length; itime++){
+        var time = atime[itime];
+        var date = new Date();
+        date.setTime(time*1000);
+        var u = {
+           header: {
+          "parameterCategory": 2,
+          "parameterNumber": 2,
+          "forecastTime": 0,
+          "refTime" : date.toISOString2(),
+          "nx": alon.length,
+          "ny": alat.length,
+          "la2": alat[0],
+          "lo1": alon[0],
+          "la1": alat[alat.length-1],
+          "lo2": alon[alon.length-1],
+        },
+        "data": Array(),
+        };
+        var v = {
+         "header": {
+          "parameterCategory": 2,
+          "parameterNumber": 3,
+          "forecastTime": 0,
+          "refTime" : date.toISOString2(),
+          "nx": alon.length,
+          "ny": alat.length,
+          "la2": alat[0],
+          "lo1": alon[0],
+          "la1": alat[alat.length-1],
+          "lo2": alon[alon.length-1],
+        },
+          "data":  Array()
+        };
+        for(var ilat=0; ilat < alat.length; ilat++){
+              var slice = itime * (alat.length*alon.length)+ilat*alon.length;
+              v.data.unshift(yvel.slice(slice, slice+alon.length));
+              u.data.unshift(xvel.slice(slice, slice+alon.length));
+        }
+        v.data = flatten(v.data);
+        u.data = flatten(u.data);
+        results.push(u);
+        results.push(v);
+      }
+      for(var i=0;i<results.length;i++){
+        var header = results[i].header;
+        header.dx = Math.abs((header.lo1 - header.lo2)/(header.nx-1));
+        header.dy = Math.abs((header.la1 - header.la2)/(header.ny-1));
+      }
+      return results;
+    }
+
+    var fetchNCGrid = function(url,nullx,nully,cb){
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.responseType = "arraybuffer";
+      xhr.addEventListener("load", function (fn) {
+        if (xhr.status === 200) {
+          var reader = new netcdfjs(xhr.response);
+          var vars = Array();
+          for(var i=0;i< reader.variables.length;i++){
+            vars.push(reader.getDataVariable(reader.variables[i].name));
+          }
+          for(var i=0; i<vars[3].length; i++){
+            if(vars[3][i] == nullx){
+              vars[3][i] = null;
+            }
+          }
+          for(var i=0; i<vars[4].length; i++){
+            if(vars[4][i] == nully){
+              vars[4][i] = null;
+            }
+          }
+          var grid = nc2gfs(vars[0],vars[1],vars[2],vars[3],vars[4]);
+          fn.success(grid);
+        }
+      }.bind(null,cb),false);
+
+      xhr.send();
+    }
+
+    var ncRequest = function(url,nullx,nully){
+      //TODO: use params
+      this.then = function(success,err){
+        this.success = success;
+        this.err = err;
+      }.bind(this);
+      this.success = function(what){
+        console.log("no sucess");
+      }.bind(this);
+      this.err = function(e){
+        console.log(e);
+      }
+      setTimeout(fetchNCGrid.bind(null,url,nullx,nully,this),0);
+      return this;
+    };
+    </script>
+    <script>
+    var create_map = function(){
+
       var map, rasterLayer;
       var canvasSupport;
 
@@ -64,8 +203,8 @@
         canvasSupport = supports_canvas();
 
         map = new Map("mapCanvas", {
-          center: [-99.076, 39.132],
-          zoom: 3,
+          center: [-9.32, 53.19],
+          zoom: 11,
           basemap: "dark-gray"
         });
 
@@ -85,18 +224,16 @@
             map.on("zoom-start", redraw);
             map.on("pan-start", redraw);
 
-            var layersRequest = esriRequest({
-              url: './gfs.json',
-              content: {},
-              handleAs: "json"
-            });
-            layersRequest.then(
-              function(response) {
-                windy = new Windy({ canvas: rasterLayer._element, data: response });
-                redraw();
-            }, function(error) {
-                console.log("Error: ", error.message);
-            });
+                var layerRequest = ncRequest("connemara.nc",1.0E37,1.0E37);
+                layerRequest.then(
+                  function(gfs) {
+										var windy = new Windy({ canvas: rasterLayer._element, data: gfs });
+										windy.onTimeChange(display_time);
+                    windlayers.push(windy);
+                    redraw();
+                }, function(error) {
+                    console.log("Error: ", error.message);
+                });
 
           } else {
             dom.byId("mapCanvas").innerHTML = "This browser doesn't support canvas. Visit <a target='_blank' href='http://www.caniuse.com/#search=canvas'>caniuse.com</a> for supported browsers";
@@ -112,19 +249,34 @@
 
           rasterLayer._element.width = map.width;
           rasterLayer._element.height = map.height;
-
-          windy.stop();
+          windlayers.forEach(function(windy){
+            windy.stop();
+          });
 
           var extent = map.geographicExtent;
-          setTimeout(function(){
-            windy.start(
-              [[0,0],[map.width, map.height]],
-              map.width,
-              map.height,
-              [[extent.xmin, extent.ymin],[extent.xmax, extent.ymax]]
-            );
-          },500);
+          windlayers.forEach(function(layer){
+            setTimeout(function(windy){
+              windy.start(
+                [[0,0],[map.width, map.height]],
+                map.width,
+                map.height,
+                [[extent.xmin, extent.ymin],[extent.xmax, extent.ymax]]
+              );
+            }.bind(null,layer),500);
+          });
         }
+      });
+    };
+      var phantom_wait_for_netcdfjs = function(callback){
+        if(typeof netcdfjs === 'undefined' && typeof window.netcdfjs === 'undefined'){
+             console.log("netcdfjs not loaded yet...");
+             setTimeout(phantom_wait_for_netcdfjs.bind(null,callback),1000);
+        }else{
+          callback();
+        }
+      }
+      document.addEventListener("DOMContentLoaded", function(event) {
+        phantom_wait_for_netcdfjs(create_map);
       });
     </script>
   </head>
@@ -132,7 +284,9 @@
   <body class="">
      <div id="mapCanvas" style="height:100%;">
      </div>
-     <div id="credit">Inspired by <a href="https://github.com/cambecc/earth">Earth</a>, data from <a href="http://nomads.ncdc.noaa.gov/data.php?name=access#hires_weather_datasets">GFS</a>, open source on <a href="https://github.com/Esri/wind-js">Github</a></div>
+		 <div class="github-fork-ribbon" href="https://github.com/fullergalway/water-js" title="Fork Me on Github!" id="display_time">Fork Me on Github!</div>
+     <div id="credit">Implemented by <a href="http://www.marine.ie">Irish Marine Institute</a>, based on <a href="https://github.com/Esri/wind-js">wind-js</a>, as inspired by <a href="https://github.com/cambecc/earth">Earth</a>, Marine Institute data via <a href="https://coastwatch.pfeg.noaa.gov/erddap/">Erddap</a>, open source on <a href="https://github.com/fullergalway/water-js">Github</a></div>
+
   </body>
 
 </html>
