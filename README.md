@@ -1,6 +1,8 @@
-# Wind-JS
+# Water-JS
 
-![Wind JS](https://f.cloud.github.com/assets/351164/2349895/36ba1c9a-a569-11e3-859d-5d753ea0898c.jpeg)
+This is a fork of [Wind-js](https://github.com/Esri/wind-js) with some time element added by [Irish Marine Institute](http://www.marine.ie).
+
+![Water JS](water-js.gif?raw=true "water-js")
 
 
 This project is an experiment in client-side data processing and visualization. Most of the code in this project is taken from https://github.com/cambecc/earth and has been re-purposed to support easier application to a variety of mapping APIs and Frameworks.
@@ -11,9 +13,15 @@ The code for this project uses nothing but an HTML5 Canvas element and pure Java
 
 ## The Demo
 
-[http://esri.github.io/wind-js/](http://esri.github.io/wind-js/)
+[http://fullergalway.github.io/water-js/](http://fullergalway.github.io/water-js/)
 
 ## The Data
+
+### NetCDF
+
+The example uses netcdf data, parsed using [netcdfjs](https://github.com/cheminfo-js/netcdfjs) and converted to the gfs json format in javascript.
+
+### GFS
 
 For more information about GFS data visit: [GFS Data](http://nomads.ncdc.noaa.gov/data.php?name=access#hires_weather_datasets).
 
@@ -21,6 +29,8 @@ Before GFS data can be used with this code it has to be converted into JSON. To 
 
 ## Resources
 
+* [https://github.com/Esri/wind-js]
+* [https://github.com/cheminfo-js/netcdfjs]
 * [https://github.com/cambecc/earth](https://github.com/cambecc/earth)
 * [http://earth.nullschool.net/](http://earth.nullschool.net/)
 * [GFS Data](http://nomads.ncdc.noaa.gov/data.php?name=access#hires_weather_datasets)
